@@ -169,6 +169,31 @@ def rewrite_text(title, summary):
 # BUILD BRANDED IMAGE
 # ---------------------------------------------------------------------------
 
+def add_logo_watermark(img, logo_path="assets/logo.png", size_ratio=0.16, margin=24):
+    """Paste the channel logo (cropped to a circle) in the top-right corner."""
+    if not os.path.exists(logo_path):
+        return img  # no logo file committed yet, skip silently
+
+    try:
+        logo = Image.open(logo_path).convert("RGBA")
+        logo_size = int(img.width * size_ratio)
+        logo = logo.resize((logo_size, logo_size))
+
+        # Crop to a circle regardless of the source image's shape
+        mask = Image.new("L", logo.size, 0)
+        mask_draw = ImageDraw.Draw(mask)
+        mask_draw.ellipse((0, 0, logo.size[0], logo.size[1]), fill=255)
+        logo.putalpha(mask)
+
+        base = img.convert("RGBA")
+        position = (base.width - logo_size - margin, margin)
+        base.paste(logo, position, logo)
+        return base.convert("RGB")
+    except Exception as e:
+        print("Could not add logo watermark:", e)
+        return img
+
+
 def build_image(image_url, headline):
     resp = requests.get(image_url, timeout=30)
     resp.raise_for_status()
@@ -216,6 +241,8 @@ def build_image(image_url, headline):
         y += 50
 
     draw.text((40, img.height - 40), CHANNEL_HANDLE, font=small_font, fill="#e63946")
+
+    img = add_logo_watermark(img)
 
     out_path = "output.jpg"
     img.save(out_path, "JPEG", quality=92)
