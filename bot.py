@@ -216,6 +216,37 @@ def rewrite_text(title, summary):
 # BUILD BRANDED IMAGE
 # ---------------------------------------------------------------------------
 
+def escape_html(text):
+    """Escapes special characters so the caption is safe to send with parse_mode=HTML."""
+    return (
+        text.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
+
+
+def build_caption_with_premium_emoji(caption, emoji_ids, fallback_emoji="\U0001F525"):
+    """Builds an HTML-formatted caption that embeds one premium (custom) emoji
+    INSIDE the message text itself (not as a reaction).
+
+    Uses Telegram's special <tg-emoji emoji-id="..."> tag, which requires
+    parse_mode="HTML" on the send call. The visible character inside the tag
+    (fallback_emoji) is what shows up for clients/users that can't render
+    custom emoji (e.g. non-Telegram-Premium accounts on some platforms) --
+    Telegram Premium users will see the actual premium/animated emoji instead.
+    """
+    safe_caption = escape_html(caption)
+
+    if not emoji_ids:
+        # No premium emoji available, just return the plain (escaped) caption.
+        return safe_caption
+
+    emoji_id = random.choice(emoji_ids)
+    premium_tag = f'<tg-emoji emoji-id="{emoji_id}">{fallback_emoji}</tg-emoji>'
+
+    return f"{safe_caption} {premium_tag}"
+
+
 def add_logo_watermark(img, logo_path="logo.png", size_ratio=0.16, margin=24):
     """Paste the channel logo (cropped to a circle) in the top-right corner."""
     if not os.path.exists(logo_path):
@@ -300,17 +331,55 @@ def build_image(image_url, headline):
 # POST TO TELEGRAM
 # ---------------------------------------------------------------------------
 
-def send_photo(photo_path, caption):
+def send_photo(photo_path, caption, parse_mode=None):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
+    data = {"chat_id": TELEGRAM_CHANNEL_ID, "caption": caption}
+    if parse_mode:
+        data["parse_mode"] = parse_mode
     with open(photo_path, "rb") as f:
         resp = requests.post(
             url,
-            data={"chat_id": TELEGRAM_CHANNEL_ID, "caption": caption},
+            data=data,
             files={"photo": f},
             timeout=60,
         )
+    result = resp.json()
+    if not result.get("ok"):
+        print(
+            f"sendPhoto failed: error_code={result.get('error_code')} "
+            f"description={result.get('description')}"
+        )
     resp.raise_for_status()
-    return resp.json()
+    return result
+
+
+def react_with_standard_emoji(message_id, emoji="\U0001F525"):
+    """Diagnostic helper: reacts with a plain, non-premium emoji (default: fire).
+    If THIS fails too, the problem is permissions/settings, not the emoji IDs.
+    If THIS succeeds but the premium/custom one fails, the problem is specifically
+    with the values inside emoji_ids.json (they are probably not reaction-eligible)."""
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setMessageReaction"
+    payload = {
+        "chat_id": TELEGRAM_CHANNEL_ID,
+        "message_id": message_id,
+        "reaction": json.dumps([{"type": "emoji", "emoji": emoji}]),
+        "is_big": False,
+    }
+    try:
+        resp = requests.post(url, data=payload, timeout=15)
+        result = resp.json()
+        if result.get("ok"):
+            print(f"[DIAGNOSTIC] Standard emoji reaction succeeded with {emoji}.")
+            return True
+        else:
+            print(
+                f"[DIAGNOSTIC] Standard emoji reaction FAILED: "
+                f"error_code={result.get('error_code')} description={result.get('description')}"
+            )
+            return False
+    except Exception as e:
+        print("[DIAGNOSTIC] Standard emoji reaction request failed:", e)
+        return False
 
 
 def react_with_premium_emoji(message_id, emoji_ids):
@@ -368,16 +437,15 @@ def main():
         return
 
     caption = rewrite_text(news["title"], news["summary"])
+
+    emoji_ids = load_emoji_ids()
+    final_caption = build_caption_with_premium_emoji(caption, emoji_ids)
+
     best_image_url = get_high_res_image(news["link"]) or news["image_url"]
     image_path = build_image(best_image_url, news["title"])
-    result = send_photo(image_path, caption)
+    result = send_photo(image_path, final_caption, parse_mode="HTML")
 
     print("Posted successfully:", result.get("ok"), "-", news["title"])
-
-    message_id = result.get("result", {}).get("message_id")
-    if message_id:
-        emoji_ids = load_emoji_ids()
-        react_with_premium_emoji(message_id, emoji_ids)
 
     posted.add(news["id"])
     save_posted(posted)
