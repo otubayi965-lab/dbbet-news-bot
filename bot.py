@@ -169,7 +169,7 @@ def rewrite_text(title, summary):
 # BUILD BRANDED IMAGE
 # ---------------------------------------------------------------------------
 
-def add_logo_watermark(img, logo_path="assets/logo.png", size_ratio=0.16, margin=24):
+def add_logo_watermark(img, logo_path="logo.png", size_ratio=0.16, margin=24):
     """Paste the channel logo (cropped to a circle) in the top-right corner."""
     if not os.path.exists(logo_path):
         return img  # no logo file committed yet, skip silently
