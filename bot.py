@@ -7,7 +7,9 @@ This script:
      otherwise a simple template)
   3. Downloads the article image and overlays a headline + logo/text band on it
   4. Posts the result (photo + caption) to your Telegram channel
-  5. Remembers what it already posted (state/posted.json) so it never repeats a story
+  5. Reacts to the posted message with a random premium (custom) emoji from
+     emoji_ids.json in the repo root
+  6. Remembers what it already posted (state/posted.json) so it never repeats a story
 
 Run manually with:  python bot.py
 Runs automatically via .github/workflows/post.yml on a schedule.
@@ -17,6 +19,7 @@ import os
 import io
 import re
 import json
+import random
 import requests
 import feedparser
 from PIL import Image, ImageDraw, ImageFont
@@ -33,6 +36,7 @@ RSS_FEEDS = [
 ]
 
 STATE_FILE = "state/posted.json"
+EMOJI_IDS_FILE = "emoji_ids.json"  # root of the repo
 CHANNEL_HANDLE = "@DBbetWorld"
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
@@ -64,6 +68,40 @@ def save_posted(posted):
     os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
     with open(STATE_FILE, "w", encoding="utf-8") as f:
         json.dump(list(posted)[-500:], f, ensure_ascii=False, indent=2)
+
+
+# ---------------------------------------------------------------------------
+# PREMIUM EMOJI IDS
+# ---------------------------------------------------------------------------
+
+def load_emoji_ids():
+    """Reads the list of premium (custom) emoji IDs from emoji_ids.json.
+
+    Supports two possible formats:
+      1. A flat list:            ["5368324170671202286", "5368...", ...]
+      2. A list of objects:      [{"id": "5368...", "name": "fire"}, ...]
+    Returns a flat list of ID strings either way.
+    """
+    if not os.path.exists(EMOJI_IDS_FILE):
+        print(f"No {EMOJI_IDS_FILE} found, skipping reactions.")
+        return []
+
+    with open(EMOJI_IDS_FILE, "r", encoding="utf-8") as f:
+        try:
+            data = json.load(f)
+        except json.JSONDecodeError as e:
+            print(f"Could not parse {EMOJI_IDS_FILE}:", e)
+            return []
+
+    ids = []
+    for item in data:
+        if isinstance(item, str):
+            ids.append(item)
+        elif isinstance(item, dict) and "id" in item:
+            ids.append(str(item["id"]))
+
+    print(f"Loaded {len(ids)} premium emoji IDs from {EMOJI_IDS_FILE}.")
+    return ids
 
 
 # ---------------------------------------------------------------------------
@@ -268,6 +306,36 @@ def send_photo(photo_path, caption):
     return resp.json()
 
 
+def react_with_premium_emoji(message_id, emoji_ids):
+    """Reacts to the given message with one random premium (custom) emoji
+    from the provided list of custom_emoji_id values."""
+    if not emoji_ids:
+        print("No premium emoji IDs available, skipping reaction.")
+        return
+
+    emoji_id = random.choice(emoji_ids)
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setMessageReaction"
+    payload = {
+        "chat_id": TELEGRAM_CHANNEL_ID,
+        "message_id": message_id,
+        "reaction": json.dumps(
+            [{"type": "custom_emoji", "custom_emoji_id": emoji_id}]
+        ),
+        "is_big": False,
+    }
+
+    try:
+        resp = requests.post(url, data=payload, timeout=15)
+        resp.raise_for_status()
+        result = resp.json()
+        if result.get("ok"):
+            print(f"Reacted with premium emoji {emoji_id}.")
+        else:
+            print("Telegram rejected the reaction:", result)
+    except Exception as e:
+        print("Could not add reaction (bot may need admin rights in the channel):", e)
+
+
 # ---------------------------------------------------------------------------
 # MAIN
 # ---------------------------------------------------------------------------
@@ -286,6 +354,11 @@ def main():
     result = send_photo(image_path, caption)
 
     print("Posted successfully:", result.get("ok"), "-", news["title"])
+
+    message_id = result.get("result", {}).get("message_id")
+    if message_id:
+        emoji_ids = load_emoji_ids()
+        react_with_premium_emoji(message_id, emoji_ids)
 
     posted.add(news["id"])
     save_posted(posted)
