@@ -28,6 +28,8 @@ from PIL import Image, ImageDraw, ImageFont
 RSS_FEEDS = [
     "http://feeds.bbci.co.uk/sport/football/rss.xml",
     "https://www.espn.com/espn/rss/soccer/news",
+    "https://www.theguardian.com/football/rss",
+    "https://www.skysports.com/rss/12040",
 ]
 
 STATE_FILE = "state/posted.json"
