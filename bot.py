@@ -320,27 +320,39 @@ def react_with_premium_emoji(message_id, emoji_ids):
         print("No premium emoji IDs available, skipping reaction.")
         return
 
-    emoji_id = random.choice(emoji_ids)
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setMessageReaction"
-    payload = {
-        "chat_id": TELEGRAM_CHANNEL_ID,
-        "message_id": message_id,
-        "reaction": json.dumps(
-            [{"type": "custom_emoji", "custom_emoji_id": emoji_id}]
-        ),
-        "is_big": False,
-    }
+    # Try a few different random IDs in case some are invalid/expired,
+    # instead of giving up after the very first failure.
+    attempts = emoji_ids[:]
+    random.shuffle(attempts)
 
-    try:
-        resp = requests.post(url, data=payload, timeout=15)
-        resp.raise_for_status()
-        result = resp.json()
-        if result.get("ok"):
-            print(f"Reacted with premium emoji {emoji_id}.")
-        else:
-            print("Telegram rejected the reaction:", result)
-    except Exception as e:
-        print("Could not add reaction (bot may need admin rights in the channel):", e)
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setMessageReaction"
+
+    for emoji_id in attempts[:5]:  # try up to 5 candidates
+        payload = {
+            "chat_id": TELEGRAM_CHANNEL_ID,
+            "message_id": message_id,
+            "reaction": json.dumps(
+                [{"type": "custom_emoji", "custom_emoji_id": emoji_id}]
+            ),
+            "is_big": False,
+        }
+
+        try:
+            resp = requests.post(url, data=payload, timeout=15)
+            result = resp.json()  # parse body BEFORE raising, so we can see the real reason
+            if result.get("ok"):
+                print(f"Reacted with premium emoji {emoji_id}.")
+                return
+            else:
+                print(
+                    f"Telegram rejected emoji {emoji_id}: "
+                    f"error_code={result.get('error_code')} "
+                    f"description={result.get('description')}"
+                )
+        except Exception as e:
+            print(f"Request failed for emoji {emoji_id}:", e)
+
+    print("All reaction attempts failed. See per-attempt errors above.")
 
 
 # ---------------------------------------------------------------------------
