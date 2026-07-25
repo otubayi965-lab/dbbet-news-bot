@@ -36,18 +36,22 @@ def main():
         print(f"\n{'=' * 60}")
         print(f"PACK: {pack_name}")
         print("=" * 60)
+
         try:
             resp = requests.get(
                 f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getStickerSet",
                 params={"name": pack_name},
                 timeout=20,
             )
+
             data = resp.json()
+
             if not data.get("ok"):
                 print(f"  Could not fetch this pack: {data.get('description')}")
                 continue
 
             stickers = data["result"].get("stickers", [])
+
             if not stickers:
                 print("  (no emoji found in this pack)")
                 continue
@@ -55,11 +59,11 @@ def main():
             for sticker in stickers:
                 emoji_char = sticker.get("emoji", "?")
                 custom_emoji_id = sticker.get("custom_emoji_id", "?")
-                print(f"  {emoji_char}  ->  {custom_emoji_id}")
+                print(f"  {emoji_char} -> {custom_emoji_id}")
 
         except Exception as e:
             print(f"  Error fetching pack: {e}")
 
 
-if name == "main":
+if __name__ == "__main__":
     main()
