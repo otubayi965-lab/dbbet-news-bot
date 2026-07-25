@@ -1,21 +1,4 @@
-Run python fetch_emoji_ids.py
-  python fetch_emoji_ids.py
-  shell: /usr/bin/bash -e {0}
-  env:
-    pythonLocation: /opt/hostedtoolcache/Python/3.11.15/x64
-    PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.15/x64/lib/pkgconfig
-    Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.15/x64
-    Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.15/x64
-    Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.15/x64
-    LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.15/x64/lib
-    TELEGRAM_BOT_TOKEN: ***
 
-============================================================
-PACK: PROFIT_MAFIA_II
-============================================================
-  🥇 -> 5301075711644153578
-  🥈 -> 5303516017572460859
-  🥉 -> 5303470641242978062
   💰 -> 5260427797557431116
   ⭐ -> 5222039865197084254
   ❤️ -> 5222481143021978877
