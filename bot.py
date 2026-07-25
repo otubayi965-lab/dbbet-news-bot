@@ -94,11 +94,18 @@ def load_emoji_ids():
             return []
 
     ids = []
-    for item in data:
-        if isinstance(item, str):
-            ids.append(item)
-        elif isinstance(item, dict) and "id" in item:
-            ids.append(str(item["id"]))
+    if isinstance(data, dict):
+        # Format: {"🥇": "5301075711644153578", "🔥": "5317058732356542197", ...}
+        # We want the VALUES (the numeric custom_emoji_id), not the emoji keys.
+        for value in data.values():
+            if isinstance(value, str) and value.isdigit():
+                ids.append(value)
+    elif isinstance(data, list):
+        for item in data:
+            if isinstance(item, str):
+                ids.append(item)
+            elif isinstance(item, dict) and "id" in item:
+                ids.append(str(item["id"]))
 
     print(f"Loaded {len(ids)} premium emoji IDs from {EMOJI_IDS_FILE}.")
     return ids
